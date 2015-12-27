@@ -393,7 +393,7 @@ func (p *toml) init(data []rune) {
 	p.currentTable = p.table
 }
 
-func (p *toml) Error(err error) {
+func (p *toml) Panic(err error) {
 	panic(convertError{fmt.Errorf("toml: line %d: %v", p.line, err)})
 }
 
@@ -470,7 +470,7 @@ func (p *toml) setTable(t *ast.Table, buf []rune, begin, end int) {
 	names := splitTableKey(name)
 	t, err := p.lookupTable(t, names[:len(names)-1])
 	if err != nil {
-		p.Error(err)
+		p.Panic(err)
 	}
 	last := names[len(names)-1]
 	var tbl *ast.Table
@@ -484,17 +484,17 @@ func (p *toml) setTable(t *ast.Table, buf []rune, begin, end int) {
 		}
 	case *ast.Table:
 		if v.IsDefined() {
-			p.Error(fmt.Errorf("table `%s' is in conflict with %v table in line %d", name, v.Type, v.Line))
+			p.Panic(fmt.Errorf("table `%s' is in conflict with %v table in line %d", name, v.Type, v.Line))
 		}
 		v.Position = ast.Position{begin, end}
 		v.Line = p.line
 		tbl = v
 	case []*ast.Table:
-		p.Error(fmt.Errorf("table `%s' was previously defined as array table", name))
+		p.Panic(fmt.Errorf("table `%s' was previously defined as array table", name))
 	case *ast.KeyValue:
-		p.Error(fmt.Errorf("key `%s' is in conflict with line %d", last, v.Line))
+		p.Panic(fmt.Errorf("key `%s' is in conflict with line %d", last, v.Line))
 	default:
-		p.Error(fmt.Errorf("BUG: key `%s' is in conflict but it's unknown type `%T'", last, v))
+		p.Panic(fmt.Errorf("BUG: key `%s' is in conflict but it's unknown type `%T'", last, v))
 	}
 	if t.Fields == nil {
 		t.Fields = make(map[string]interface{})
@@ -519,7 +519,7 @@ func (p *toml) setArrayTable(t *ast.Table, buf []rune, begin, end int) {
 	names := splitTableKey(name)
 	t, err := p.lookupTable(t, names[:len(names)-1])
 	if err != nil {
-		p.Error(err)
+		p.Panic(err)
 	}
 	last := names[len(names)-1]
 	tbl := &ast.Table{
@@ -537,11 +537,11 @@ func (p *toml) setArrayTable(t *ast.Table, buf []rune, begin, end int) {
 	case []*ast.Table:
 		t.Fields[last] = append(v, tbl)
 	case *ast.Table:
-		p.Error(fmt.Errorf("table `%s' is in conflict with %s table in line %d", name, v.Type, v.Line))
+		p.Panic(fmt.Errorf("table `%s' is in conflict with %s table in line %d", name, v.Type, v.Line))
 	case *ast.KeyValue:
-		p.Error(fmt.Errorf("key `%s' is in conflict with line %d", last, v.Line))
+		p.Panic(fmt.Errorf("key `%s' is in conflict with line %d", last, v.Line))
 	default:
-		p.Error(fmt.Errorf("BUG: key `%s' is in conflict but it's unknown type `%T'", last, v))
+		p.Panic(fmt.Errorf("BUG: key `%s' is in conflict but it's unknown type `%T'", last, v))
 	}
 	p.currentTable = tbl
 }
@@ -581,11 +581,11 @@ func (p *toml) AddKeyValue() {
 	if val, exists := p.currentTable.Fields[p.key]; exists {
 		switch v := val.(type) {
 		case *ast.Table:
-			p.Error(fmt.Errorf("key `%s' is in conflict with %v table in line %d", p.key, v.Type, v.Line))
+			p.Panic(fmt.Errorf("key `%s' is in conflict with %v table in line %d", p.key, v.Type, v.Line))
 		case *ast.KeyValue:
-			p.Error(fmt.Errorf("key `%s' is in conflict with line %d", p.key, v.Line))
+			p.Panic(fmt.Errorf("key `%s' is in conflict with line %d", p.key, v.Line))
 		default:
-			p.Error(fmt.Errorf("BUG: key `%s' is in conflict but it's unknown type `%T'", p.key, v))
+			p.Panic(fmt.Errorf("BUG: key `%s' is in conflict but it's unknown type `%T'", p.key, v))
 		}
 	}
 	if p.currentTable.Fields == nil {
@@ -621,7 +621,7 @@ func (p *toml) SetMultilineLiteralString(buf []rune, begin, end int) {
 func (p *toml) unquote(s string) string {
 	s, err := strconv.Unquote(s)
 	if err != nil {
-		p.Error(err)
+		p.Panic(err)
 	}
 	return s
 }
