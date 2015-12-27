@@ -379,7 +379,6 @@ type toml struct {
 	key          string
 	val          ast.Value
 	arr          *array
-	tableMap     map[string]*ast.Table
 	stack        []*stack
 	skip         bool
 }
@@ -390,9 +389,6 @@ func (p *toml) init(data []rune) {
 		Line: p.line,
 		Type: ast.TableTypeNormal,
 		Data: data[:len(data)-1], // truncate the end_symbol added by PEG parse generator.
-	}
-	p.tableMap = map[string]*ast.Table{
-		"": p.table,
 	}
 	p.currentTable = p.table
 }
@@ -472,11 +468,6 @@ func (p *toml) SetTable(buf []rune, begin, end int) {
 func (p *toml) setTable(t *ast.Table, buf []rune, begin, end int) {
 	name := string(buf[begin:end])
 	names := splitTableKey(name)
-	if t, exists := p.tableMap[name]; exists {
-		if lt := p.tableMap[names[len(names)-1]]; t.Type == ast.TableTypeArray || lt != nil && lt.Type == ast.TableTypeNormal {
-			p.Error(fmt.Errorf("table `%s' is in conflict with %v table in line %d", name, t.Type, t.Line))
-		}
-	}
 	t, err := p.lookupTable(t, names[:len(names)-1])
 	if err != nil {
 		p.Error(err)
@@ -510,7 +501,6 @@ func (p *toml) setTable(t *ast.Table, buf []rune, begin, end int) {
 	}
 	t.Fields[last] = tbl
 	p.currentTable = tbl
-	p.tableMap[name] = p.currentTable
 }
 
 func (p *tomlParser) SetTableString(begin, end int) {
@@ -526,9 +516,6 @@ func (p *toml) SetArrayTable(buf []rune, begin, end int) {
 
 func (p *toml) setArrayTable(t *ast.Table, buf []rune, begin, end int) {
 	name := string(buf[begin:end])
-	if t, exists := p.tableMap[name]; exists && t.Type == ast.TableTypeNormal {
-		p.Error(fmt.Errorf("table `%s' is in conflict with %v table in line %d", name, t.Type, t.Line))
-	}
 	names := splitTableKey(name)
 	t, err := p.lookupTable(t, names[:len(names)-1])
 	if err != nil {
@@ -549,13 +536,14 @@ func (p *toml) setArrayTable(t *ast.Table, buf []rune, begin, end int) {
 		t.Fields[last] = []*ast.Table{tbl}
 	case []*ast.Table:
 		t.Fields[last] = append(v, tbl)
+	case *ast.Table:
+		p.Error(fmt.Errorf("table `%s' is in conflict with %s table in line %d", name, v.Type, v.Line))
 	case *ast.KeyValue:
 		p.Error(fmt.Errorf("key `%s' is in conflict with line %d", last, v.Line))
 	default:
 		p.Error(fmt.Errorf("BUG: key `%s' is in conflict but it's unknown type `%T'", last, v))
 	}
 	p.currentTable = tbl
-	p.tableMap[name] = p.currentTable
 }
 
 func (p *toml) StartInlineTable() {
